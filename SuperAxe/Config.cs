@@ -14,6 +14,7 @@
         public MenuItem<KeyBind> Key { get; }
         public MenuItem<AbilityToggler> UseItemsInit { get; }
         public MenuItem<AbilityToggler> UseItems { get; }
+        public MenuItem<bool> EnabledKillingWithoutCombos { get; }
 
         public Dictionary<string, bool> Items = new Dictionary<string, bool>
         {
@@ -38,6 +39,7 @@
             this.Key = this.Menu.Item("Combo Key", new KeyBind(32));
             this.UseItemsInit = this.Menu.Item("Items For Initiation", new AbilityToggler(ItemsInitiation));
             this.UseItems = this.Menu.Item("Use Items In Call", new AbilityToggler(Items));
+            this.EnabledKillingWithoutCombos = this.Menu.Item("Enable Killing Without Combos", true);
         }
 
         public void Dispose()

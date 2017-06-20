@@ -50,6 +50,8 @@
             this.BattleAbility = this.MyHero.Spellbook.SpellW;
             this.CallAbility = this.MyHero.Spellbook.SpellQ;
 
+            UpdateManager.BeginInvoke(this.Loop);
+
             Drawing.OnDraw += this.Drawing_OnDraw;
 
             base.OnActivate();
@@ -148,7 +150,20 @@
             await Task.Delay(50, token);
         }
 
-        public async Task Kill(CancellationToken token)
+        private async void Loop()
+        {
+            while (this.IsActive)
+            {
+                if (!this.CanExecute && this.Config.EnabledKillingWithoutCombos && this.Config.Enabled)
+                {
+                    await Kill();
+                }
+
+                await Task.Delay(100);
+            }
+        }
+
+        public async Task Kill(CancellationToken token = new CancellationToken())
         {
             var enemies = EntityManager<Hero>.Entities
                 .Where(x => this.MyHero.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive)
