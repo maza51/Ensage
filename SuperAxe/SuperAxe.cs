@@ -26,7 +26,6 @@
     public class SuperAxe : KeyPressOrbwalkingModeAsync
     {
         private Unit MyHero;
-        private Unit Target;
 
         private Ability UltAbility { get; set; }
         private Ability BattleAbility { get; set; }
@@ -106,60 +105,62 @@
                 var distanceToHitChance = EntityExtensions.Distance2D(this.MyHero, posForHitChance);
 
                 // Prediction? no, have not heard..
+
+                if (distanceToHitChance < 1200 && distanceToHitChance > rangeCallAbility)
+                {
+                    if (blink != null && blink.CanBeCasted() && this.Config.UseItemsInit.Value.IsEnabled(blink.Name))
+                    {
+                        blink.UseAbility(posForHitChance);
+                        await Task.Delay(10, token);
+                    }
+                }
+                
+                if (distanceToHitChance < 800 && distanceToHitChance > rangeCallAbility)
+                {
+                    if (forece != null && forece.CanBeCasted() && this.Config.UseItemsInit.Value.IsEnabled(forece.Name))
+                    {
+                        if (Vector3Extensions.Distance(UnitExtensions.InFront(this.MyHero, 800), posForHitChance) < rangeCallAbility)
+                        {
+                            forece.UseAbility(this.MyHero);
+                            await Task.Delay(10, token);
+                        }
+                        else
+                        {
+                            var posForTurn = this.MyHero.Position.Extend(posForHitChance, 70);
+
+                            this.Orbwalker.Move(posForTurn);
+
+                            await Task.Delay((int)(MyHero.GetTurnTime(posForHitChance) * 1000.0 + Game.Ping), token);
+                        }
+                    }
+                }
+                
                 if (distanceToHitChance < rangeCallAbility)
                 {
                     this.CallAbility.UseAbility();
                     await Task.Delay((int)delayCallAbility, token);
                 }
-                else if (distanceToHitChance < 1200 && blink != null && blink.CanBeCasted() && this.Config.UseItemsInit.Value.IsEnabled(blink.Name))
-                {
-                    blink.UseAbility(posForHitChance);
-                    await Task.Delay(10, token);
-                }
-                // 800?
-                else if (distanceToHitChance < 800 && forece != null && forece.CanBeCasted() && this.Config.UseItemsInit.Value.IsEnabled(forece.Name))
-                {
-                    if (Vector3Extensions.Distance(UnitExtensions.InFront(this.MyHero, 800), posForHitChance) < rangeCallAbility)
-                    {
-                        forece.UseAbility(this.MyHero);
-                        await Task.Delay(10, token);
-                    }
-                    else
-                    {
-                        var posForTurn = this.MyHero.Position.Extend(posForHitChance, 70);
 
-                        this.Orbwalker.Move(posForTurn);
-
-                        await Task.Delay((int)(MyHero.GetTurnTime(posForHitChance) * 1000.0 + Game.Ping), token);
-                    }
-                }
-                else
-                {
-                    this.Orbwalker.Move(posForHitChance);
-                }
+                this.Orbwalker.Move(posForHitChance);
             }
             else
             {
                 this.Orbwalker.OrbwalkTo(target);
             }
 
-            await Kill(token);
-
             await UseItems(target, token);
-
-            await Task.Delay(50, token);
         }
 
         private async void Loop()
         {
             while (this.IsActive)
             {
-                if (!this.CanExecute && this.Config.EnabledKillingWithoutCombos && this.Config.Enabled)
+                if (/* !this.CanExecute && */this.Config.EnabledKillSteal && this.Config.Enabled)
                 {
                     await Kill();
                 }
 
-                await Task.Delay(100);
+                await Task.Delay(50);
             }
         }
 

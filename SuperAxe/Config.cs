@@ -2,7 +2,7 @@
 {
     using System;
     using System.Collections.Generic;
-
+    
     using Ensage.Common.Menu;
     using Ensage.SDK.Menu;
 
@@ -14,7 +14,7 @@
         public MenuItem<KeyBind> Key { get; }
         public MenuItem<AbilityToggler> UseItemsInit { get; }
         public MenuItem<AbilityToggler> UseItems { get; }
-        public MenuItem<bool> EnabledKillingWithoutCombos { get; }
+        public MenuItem<bool> EnabledKillSteal { get; }
 
         public Dictionary<string, bool> Items = new Dictionary<string, bool>
         {
@@ -39,7 +39,10 @@
             this.Key = this.Menu.Item("Combo Key", new KeyBind(32));
             this.UseItemsInit = this.Menu.Item("Items For Initiation", new AbilityToggler(ItemsInitiation));
             this.UseItems = this.Menu.Item("Use Items In Call", new AbilityToggler(Items));
-            this.EnabledKillingWithoutCombos = this.Menu.Item("Enable Killing Without Combos", true);
+            this.EnabledKillSteal = this.Menu.Item("Enable KillSteal", true);
+
+            this.Menu.Target.TextureName = "npc_dota_hero_axe";
+            this.Menu.Target.ShowTextWithTexture = true;
         }
 
         public void Dispose()
