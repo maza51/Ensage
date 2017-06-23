@@ -68,8 +68,8 @@
             if (!this.Config.Enabled)
                 return;
 
-            var enemies = ObjectManager.GetEntities<Hero>()
-                .Where(x => x.IsVisible && x.IsAlive && !x.IsIllusion && x.Team != this.MyHero.Team)
+            var enemies = EntityManager<Hero>.Entities
+                .Where(x => this.MyHero.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive)
                 .ToList();
 
             if (enemies == null)
@@ -155,9 +155,19 @@
         {
             while (this.IsActive)
             {
-                if (/* !this.CanExecute && */this.Config.EnabledKillSteal && this.Config.Enabled)
+                if (!this.Config.Enabled)
+                {
+                    return;
+                }
+
+                if (this.Config.EnabledKillSteal)
                 {
                     await Kill();
+                }
+
+                if (this.CanExecute)
+                {
+                    await AntiFail();
                 }
 
                 await Task.Delay(50);
@@ -180,7 +190,7 @@
             {
                 if (enemy.Health + (enemy.HealthRegeneration / 2) <= threshold)
                 {
-                    if (!UnitExtensions.IsSilenced(this.MyHero) && this.UltAbility.CanBeCasted(enemy) && this.UltAbility.CanHit(enemy))
+                    if (!UnitExtensions.IsSilenced(this.MyHero) && this.UltAbility.CanBeCasted(enemy) && this.UltAbility.CanHit(enemy) && this.MyHero.IsAlive)
                     {
                         this.UltAbility.UseAbility(enemy);
 
@@ -188,6 +198,19 @@
                         await Task.Delay(50, token);
                     }
                 }
+            }
+        }
+
+        public async Task AntiFail(CancellationToken token = new CancellationToken())
+        {
+            var enemies = EntityManager<Hero>.Entities
+                .Where(x => this.MyHero.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive)
+                .ToList();
+
+            if (this.CallAbility != null && this.CallAbility.IsInAbilityPhase && enemies.Count(x => x.Distance2D(this.MyHero) < 300) == 0)
+            {
+                this.MyHero.Stop();
+                await Task.Delay(50, token);
             }
         }
 
