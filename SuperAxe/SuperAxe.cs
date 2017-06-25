@@ -7,7 +7,6 @@
     using System.Windows.Input;
 
     using Ensage;
-    using Ensage.Common;
     using Ensage.Common.Extensions;
     using Ensage.SDK.Extensions;
     using Ensage.SDK.Helpers;
@@ -15,8 +14,6 @@
     using Ensage.SDK.Orbwalker;
     using Ensage.SDK.Orbwalker.Modes;
     using Ensage.SDK.TargetSelector;
-
-    using SharpDX;
 
     using AbilityId = Ensage.AbilityId;
     using UnitExtensions = Ensage.SDK.Extensions.UnitExtensions;
@@ -35,6 +32,14 @@
 
         private Lazy<ITargetSelectorManager> TargetSelector { get; }
 
+        private static readonly string[] CuntCullModifiers =
+        {
+            "modifier_obsidian_destroyer_astral_imprisonment_prison",
+            "modifier_puck_phase_shift",
+            "modifier_shadow_demon_disruption",
+            "modifier_tusk_snowball_movement"
+        };
+
         public SuperAxe(Key key, Config config, Lazy<IOrbwalkerManager> orbwalker, Lazy<IInputManager> input, Lazy<ITargetSelectorManager> targetSelector)
             : base(orbwalker.Value, input.Value, key)
         {
@@ -51,41 +56,12 @@
 
             UpdateManager.BeginInvoke(this.Loop);
 
-            Drawing.OnDraw += this.Drawing_OnDraw;
-
             base.OnActivate();
         }
 
         protected override void OnDeactivate()
         {
-            Drawing.OnDraw -= this.Drawing_OnDraw;
-
             base.OnDeactivate();
-        }
-
-        private void Drawing_OnDraw(EventArgs args)
-        {
-            if (!this.Config.Enabled)
-                return;
-
-            var enemies = EntityManager<Hero>.Entities
-                .Where(x => this.MyHero.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive)
-                .ToList();
-
-            if (enemies == null)
-                return;
-
-            var threshold = this.UltAbility.GetAbilityData("kill_threshold");
-
-            foreach (var enemy in enemies)
-            {
-                var tmp = enemy.Health < threshold ? enemy.Health : threshold;
-                var perc = (float)tmp / (float)enemy.MaximumHealth;
-                var pos = HUDInfo.GetHPbarPosition(enemy) + 2;
-                var size = new Vector2(HUDInfo.GetHPBarSizeX(enemy) - 6, HUDInfo.GetHpBarSizeY(enemy) - 2);
-
-                Drawing.DrawRect(pos, new Vector2(size.X * perc, size.Y), Color.Chocolate);
-            }
         }
 
         public override async Task ExecuteAsync(CancellationToken token)
@@ -95,50 +71,52 @@
 
             var target = this.TargetSelector.Value.Active.GetTargets().FirstOrDefault();
 
-            if (this.CallAbility.CanBeCasted() && !UnitExtensions.IsSilenced(this.MyHero) && this.MyHero.IsAlive && target != null)
+            if (target == null)
             {
-                var blink = this.MyHero.GetItemById(AbilityId.item_blink);
-                var forece = this.MyHero.GetItemById(AbilityId.item_force_staff);
-                var rangeCallAbility = 300 + target.HullRadius;
-                var delayCallAbility = this.CallAbility.FindCastPoint() * 1000 + Game.Ping;
-                var posForHitChance = UnitExtensions.InFront(target, (target.IsMoving ? (target.MovementSpeed / 2) : 0));
+                this.Orbwalker.OrbwalkTo(target);
+                return;
+            }
+
+            if (this.CallAbility.CanBeCasted() && this.MyHero.CanCast())
+            {
+                var posForHitChance = target.BasePredict(450 + Game.Ping);
                 var distanceToHitChance = EntityExtensions.Distance2D(this.MyHero, posForHitChance);
+                var blink = this.MyHero.GetItemById(AbilityId.item_blink);
+                var force = this.MyHero.GetItemById(AbilityId.item_force_staff);
 
-                // Prediction? no, have not heard..
-
-                if (distanceToHitChance < 1200 && distanceToHitChance > rangeCallAbility)
+                if (blink != null && blink.CanBeCasted() && this.Config.UseItemsInit.Value.IsEnabled(blink.Name))
                 {
-                    if (blink != null && blink.CanBeCasted() && this.Config.UseItemsInit.Value.IsEnabled(blink.Name))
+                    if (distanceToHitChance < 1200 && !this.CallAbility.CanHit(target))
                     {
                         blink.UseAbility(posForHitChance);
                         await Task.Delay(10, token);
                     }
                 }
-                
-                if (distanceToHitChance < 800 && distanceToHitChance > rangeCallAbility)
+
+                if (force != null && force.CanBeCasted() && this.Config.UseItemsInit.Value.IsEnabled(force.Name))
                 {
-                    if (forece != null && forece.CanBeCasted() && this.Config.UseItemsInit.Value.IsEnabled(forece.Name))
+                    if (distanceToHitChance < 750 && !this.CallAbility.CanHit(target))
                     {
-                        if (Vector3Extensions.Distance(UnitExtensions.InFront(this.MyHero, 800), posForHitChance) < rangeCallAbility)
+                        var posForTurn = this.MyHero.Position.Extend(posForHitChance, 70);
+
+                        this.Orbwalker.Move(posForTurn);
+
+                        await Task.Delay((int)(this.MyHero.GetTurnTime(posForTurn) * 1000 + Game.Ping + 200), token);
+
+                        if (Vector3Extensions.Distance(UnitExtensions.InFront(this.MyHero, 600), posForHitChance) < 260)
                         {
-                            forece.UseAbility(this.MyHero);
+                            force.UseAbility(this.MyHero);
                             await Task.Delay(10, token);
-                        }
-                        else
-                        {
-                            var posForTurn = this.MyHero.Position.Extend(posForHitChance, 70);
-
-                            this.Orbwalker.Move(posForTurn);
-
-                            await Task.Delay((int)(MyHero.GetTurnTime(posForHitChance) * 1000.0 + Game.Ping), token);
                         }
                     }
                 }
-                
-                if (distanceToHitChance < rangeCallAbility)
+
+                await Kill();
+
+                if (this.CallAbility.CanHit(target) && !target.HasModifiers(CuntCullModifiers, false))
                 {
                     this.CallAbility.UseAbility();
-                    await Task.Delay((int)delayCallAbility, token);
+                    await Task.Delay((int)(this.CallAbility.FindCastPoint() * 1000 + Game.Ping), token);
                 }
 
                 this.Orbwalker.Move(posForHitChance);
@@ -160,7 +138,7 @@
                     return;
                 }
 
-                if (this.Config.EnabledKillSteal)
+                if (this.Config.EnabledKillSteal && (!this.CanExecute || !this.CallAbility.CanBeCasted()))
                 {
                     await Kill();
                 }
@@ -170,15 +148,15 @@
                     await AntiFail();
                 }
 
-                await Task.Delay(50);
+                await Task.Delay(100);
             }
         }
 
         public async Task Kill(CancellationToken token = new CancellationToken())
         {
             var enemies = EntityManager<Hero>.Entities
-                .Where(x => this.MyHero.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive)
-                .OrderBy(e => e.Distance2D(MyHero))
+                .Where(x => this.MyHero.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive && x.Distance2D(this.MyHero) < 400)
+                .OrderBy(e => e.Distance2D(this.MyHero))
                 .ToList();
 
             if (enemies == null)
@@ -188,29 +166,43 @@
 
             foreach (var enemy in enemies)
             {
-                if (enemy.Health + (enemy.HealthRegeneration / 2) <= threshold)
+                if (enemy.Modifiers.Where(m => m.Name == "modifier_skeleton_king_reincarnation_scepter_active").Any())
                 {
-                    if (!UnitExtensions.IsSilenced(this.MyHero) && this.UltAbility.CanBeCasted(enemy) && this.UltAbility.CanHit(enemy) && this.MyHero.IsAlive)
-                    {
-                        this.UltAbility.UseAbility(enemy);
+                    continue;
+                }
 
-                        // Can be made shorter than FindCastPoint
-                        await Task.Delay(50, token);
-                    }
+                if (enemy.Health + (enemy.HealthRegeneration / 2) >= threshold)
+                {
+                    continue;
+                }
+
+                if (UnitExtensions.IsLinkensProtected(enemy))
+                {
+                    continue;
+                }
+
+                if (this.UltAbility.CanBeCasted(enemy) && this.MyHero.CanCast())
+                {
+                    this.UltAbility.UseAbility(enemy);
+
+                    await Task.Delay((int)(this.UltAbility.FindCastPoint() * 1000 + Game.Ping), token);
                 }
             }
         }
 
         public async Task AntiFail(CancellationToken token = new CancellationToken())
         {
-            var enemies = EntityManager<Hero>.Entities
-                .Where(x => this.MyHero.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive)
-                .ToList();
-
-            if (this.CallAbility != null && this.CallAbility.IsInAbilityPhase && enemies.Count(x => x.Distance2D(this.MyHero) < 300) == 0)
+            if (this.CallAbility != null && this.CallAbility.IsInAbilityPhase)
             {
-                this.MyHero.Stop();
-                await Task.Delay(50, token);
+                var enemies = EntityManager<Hero>.Entities
+                    .Where(x => this.MyHero.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive && this.MyHero.Distance2D(x) < 260 && !x.HasModifiers(CuntCullModifiers, false))
+                    .Count();
+
+                if (enemies == 0)
+                {
+                    this.MyHero.Stop();
+                    await Task.Delay(10, token);
+                }
             }
         }
 
@@ -258,10 +250,19 @@
                 }
 
                 var dagon = MyHero.GetDagon();
-                if (dagon != null && dagon.CanBeCasted() && !UnitExtensions.IsMagicImmune(target) && this.Config.UseItems.Value.IsEnabled("item_dagon"))
+                if (dagon != null && dagon.CanBeCasted() && this.Config.UseItems.Value.IsEnabled("item_dagon") && !UnitExtensions.IsMagicImmune(target) && !UnitExtensions.IsLinkensProtected(target))
                 {
                     dagon.UseAbility(target);
                     await Task.Delay(10, token);
+                }
+
+                if (this.BattleAbility != null && this.BattleAbility.CanBeCasted() && this.MyHero.CanCast() && !UnitExtensions.IsMagicImmune(target))
+                {
+                    if (this.BattleAbility.ManaCost + this.UltAbility.ManaCost < this.MyHero.Mana)
+                    {
+                        this.BattleAbility.UseAbility(target);
+                        await Task.Delay((int)(this.BattleAbility.FindCastPoint() * 1000 + Game.Ping), token);
+                    }
                 }
             }
         }
