@@ -18,6 +18,8 @@
 
         public Dictionary<string, bool> Items = new Dictionary<string, bool>
         {
+            { "item_pipe", true },
+            { "item_crimson_guard", true },
             { "item_blade_mail", true },
             { "item_lotus_orb", true },
             { "item_mjollnir", true },

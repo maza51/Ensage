@@ -249,6 +249,20 @@
                     await Task.Delay(10, token);
                 }
 
+                var crimson = this.MyHero.GetItemById(AbilityId.item_crimson_guard);
+                if (crimson != null && crimson.CanBeCasted() && this.Config.UseItems.Value.IsEnabled(crimson.Name))
+                {
+                    crimson.UseAbility();
+                    await Task.Delay(10, token);
+                }
+
+                var pipe = this.MyHero.GetItemById(AbilityId.item_pipe);
+                if (pipe != null && pipe.CanBeCasted() && this.Config.UseItems.Value.IsEnabled(pipe.Name))
+                {
+                    pipe.UseAbility();
+                    await Task.Delay(10, token);
+                }
+
                 var dagon = MyHero.GetDagon();
                 if (dagon != null && dagon.CanBeCasted() && this.Config.UseItems.Value.IsEnabled("item_dagon") && !UnitExtensions.IsMagicImmune(target) && !UnitExtensions.IsLinkensProtected(target))
                 {
