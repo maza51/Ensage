@@ -37,7 +37,8 @@
             "modifier_obsidian_destroyer_astral_imprisonment_prison",
             "modifier_puck_phase_shift",
             "modifier_shadow_demon_disruption",
-            "modifier_tusk_snowball_movement"
+            "modifier_tusk_snowball_movement",
+            "modifier_riki_tricks_of_the_trade_phase"
         };
 
         public SuperAxe(Key key, Config config, Lazy<IOrbwalkerManager> orbwalker, Lazy<IInputManager> input, Lazy<ITargetSelectorManager> targetSelector)
@@ -77,7 +78,7 @@
                 return;
             }
 
-            if (this.CallAbility.CanBeCasted() && this.MyHero.CanCast())
+            if (this.MyHero.CanCast())
             {
                 var posForHitChance = target.BasePredict(450 + Game.Ping);
                 var distanceToHitChance = EntityExtensions.Distance2D(this.MyHero, posForHitChance);
@@ -86,7 +87,7 @@
 
                 if (blink != null && blink.CanBeCasted() && this.Config.UseItemsInit.Value.IsEnabled(blink.Name))
                 {
-                    if (distanceToHitChance < 1200 && !this.CallAbility.CanHit(target))
+                    if (distanceToHitChance < 1200 && !this.CallAbility.CanHit(target) && this.CallAbility.CanBeCasted())
                     {
                         blink.UseAbility(posForHitChance);
                         await Task.Delay(10, token);
@@ -95,7 +96,7 @@
 
                 if (force != null && force.CanBeCasted() && this.Config.UseItemsInit.Value.IsEnabled(force.Name))
                 {
-                    if (distanceToHitChance < 750 && !this.CallAbility.CanHit(target))
+                    if (distanceToHitChance < 750 && !this.CallAbility.CanHit(target) && this.CallAbility.CanBeCasted())
                     {
                         var posForTurn = this.MyHero.Position.Extend(posForHitChance, 70);
 
@@ -112,18 +113,21 @@
                 }
 
                 await Kill();
-
-                if (this.CallAbility.CanHit(target) && !target.HasModifiers(CuntCullModifiers, false))
+                
+                if (this.CallAbility.CanBeCasted())
                 {
-                    this.CallAbility.UseAbility();
-                    await Task.Delay((int)(this.CallAbility.FindCastPoint() * 1000 + Game.Ping), token);
-                }
+                    if (this.CallAbility.CanHit(target) && !target.HasModifiers(CuntCullModifiers, false))
+                    {
+                        this.CallAbility.UseAbility();
+                        await Task.Delay((int)(this.CallAbility.FindCastPoint() * 1000 + Game.Ping), token);
+                    }
 
-                this.Orbwalker.Move(posForHitChance);
-            }
-            else
-            {
-                this.Orbwalker.OrbwalkTo(target);
+                    this.Orbwalker.Move(posForHitChance);
+                }
+                else
+                {
+                    this.Orbwalker.OrbwalkTo(target);
+                }
             }
 
             await UseItems(target, token);
