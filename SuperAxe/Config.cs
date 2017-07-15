@@ -1,6 +1,5 @@
 ﻿namespace SuperAxe
 {
-    using System;
     using System.Collections.Generic;
     
     using Ensage.Common.Menu;
@@ -13,6 +12,7 @@
         public MenuItem<bool> Enabled { get; }
         public MenuItem<KeyBind> Key { get; }
         public MenuItem<AbilityToggler> UseItemsInit { get; }
+        public MenuItem<bool> EnabledForcePlusBlink { get; }
         public MenuItem<AbilityToggler> UseItems { get; }
         public MenuItem<bool> EnabledKillSteal { get; }
 
@@ -36,20 +36,21 @@
 
         public Config()
         {
-            this.Menu = MenuFactory.Create("SuperAxe!");
-            this.Enabled = this.Menu.Item("Enabled", true);
-            this.Key = this.Menu.Item("Combo Key", new KeyBind(32));
-            this.UseItemsInit = this.Menu.Item("Items For Initiation", new AbilityToggler(ItemsInitiation));
-            this.UseItems = this.Menu.Item("Use Items In Call", new AbilityToggler(Items));
-            this.EnabledKillSteal = this.Menu.Item("Enable KillSteal", true);
+            Menu = MenuFactory.Create("SuperAxe!");
+            Enabled = Menu.Item("Enabled", true);
+            Key = Menu.Item("Combo Key", new KeyBind(32));
+            UseItemsInit = Menu.Item("Items For Initiation", new AbilityToggler(ItemsInitiation));
+            EnabledForcePlusBlink = Menu.Item("Enable Force + Blink Together", true);
+            UseItems = Menu.Item("Use Items In Call", new AbilityToggler(Items));
+            EnabledKillSteal = Menu.Item("Enable KillSteal", true);
 
-            this.Menu.Target.TextureName = "npc_dota_hero_axe";
-            this.Menu.Target.ShowTextWithTexture = true;
+            Menu.Target.TextureName = "npc_dota_hero_axe";
+            Menu.Target.ShowTextWithTexture = true;
         }
 
         public void Dispose()
         {
-            this.Menu?.Dispose();
+            Menu?.Dispose();
         }
     }
 }

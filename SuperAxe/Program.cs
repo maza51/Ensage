@@ -21,13 +21,13 @@
     [ExportPlugin("SuperAxe!", HeroId.npc_dota_hero_axe)]
     public class Program : Plugin
     {
-        private Unit MyHero;
+        private readonly Unit myHero;
 
-        private readonly Lazy<IInputManager> Input;
+        private readonly Lazy<IInputManager> input;
 
-        private readonly Lazy<IOrbwalkerManager> OrbwalkerManager;
+        private readonly Lazy<IOrbwalkerManager> orbwalkerManager;
 
-        private readonly Lazy<ITargetSelectorManager> TargetSelector;
+        private readonly Lazy<ITargetSelectorManager> targetSelector;
 
         public SuperAxe OrbwalkerMode { get; private set; }
 
@@ -40,64 +40,70 @@
             [Import] Lazy<IOrbwalkerManager> orbwalkerManager,
             [Import] Lazy<ITargetSelectorManager> targetSelector)
         {
-            this.MyHero = context.Value.Owner as Hero;
-            this.Input = input;
-            this.OrbwalkerManager = orbwalkerManager;
-            this.TargetSelector = targetSelector;
+            myHero = context.Value.Owner as Hero;
+            this.input = input;
+            this.orbwalkerManager = orbwalkerManager;
+            this.targetSelector = targetSelector;
         }
 
         protected override void OnActivate()
         {
-            this.Config = new Config();
-            this.Config.Key.Item.ValueChanged += HotkeyChanged;
+            Config = new Config();
+            Config.Key.Item.ValueChanged += HotkeyChanged;
 
-            this.OrbwalkerMode = new SuperAxe(
-                KeyInterop.KeyFromVirtualKey((int)this.Config.Key.Value.Key),
-                this.Config,
-                this.OrbwalkerManager,
-                this.Input,
-                this.TargetSelector);
+            OrbwalkerMode = new SuperAxe(
+                KeyInterop.KeyFromVirtualKey((int)Config.Key.Value.Key),
+                Config,
+                orbwalkerManager,
+                input,
+                targetSelector);
 
-            this.OrbwalkerManager.Value.RegisterMode(this.OrbwalkerMode);
+            orbwalkerManager.Value.RegisterMode(OrbwalkerMode);
 
-            Drawing.OnDraw += this.Drawing_OnDraw;
+            Drawing.OnDraw += Drawing_OnDraw;
         }
 
         protected override void OnDeactivate()
         {
-            this.OrbwalkerManager.Value.UnregisterMode(this.OrbwalkerMode);
+            orbwalkerManager.Value.UnregisterMode(OrbwalkerMode);
 
-            this.Config.Key.Item.ValueChanged -= HotkeyChanged;
-            this.Config.Dispose();
+            Config.Key.Item.ValueChanged -= HotkeyChanged;
+            Config.Dispose();
 
-            Drawing.OnDraw -= this.Drawing_OnDraw;
+            Drawing.OnDraw -= Drawing_OnDraw;
         }
 
         private void Drawing_OnDraw(EventArgs args)
         {
-            if (!this.Config.Enabled)
+            if (!Config.Enabled)
+            {
                 return;
+            }
 
             var enemies = EntityManager<Hero>.Entities
-                .Where(x => this.MyHero.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive && x.IsVisible)
+                .Where(x => myHero.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive && x.IsVisible)
                 .ToList();
 
-            if (enemies == null)
-                return;
-
-            var threshold = this.MyHero.Spellbook.SpellR.GetAbilityData("kill_threshold");
-
-            if (threshold > 0)
+            if (!enemies.Any())
             {
-                foreach (var enemy in enemies)
-                {
-                    var tmp = enemy.Health < threshold ? enemy.Health : threshold;
-                    var perc = (float)tmp / (float)enemy.MaximumHealth;
-                    var pos = HUDInfo.GetHPbarPosition(enemy) + 2;
-                    var size = new Vector2(HUDInfo.GetHPBarSizeX(enemy) - 6, HUDInfo.GetHpBarSizeY(enemy) - 2);
+                return;
+            }
 
-                    Drawing.DrawRect(pos, new Vector2(size.X * perc, size.Y), Color.Chocolate);
-                }
+            var threshold = myHero.Spellbook.SpellR.GetAbilityData("kill_threshold");
+
+            if (threshold <= 0)
+            {
+                return;
+            }
+
+            foreach (var enemy in enemies)
+            {
+                var tmp = enemy.Health < threshold ? enemy.Health : threshold;
+                var perc = tmp / enemy.MaximumHealth;
+                var pos = HUDInfo.GetHPbarPosition(enemy) + 2;
+                var size = new Vector2(HUDInfo.GetHPBarSizeX(enemy) - 6, HUDInfo.GetHpBarSizeY(enemy) - 2);
+
+                Drawing.DrawRect(pos, new Vector2(size.X * perc, size.Y), Color.Chocolate);
             }
         }
 
@@ -111,7 +117,7 @@
             }
 
             var key = KeyInterop.KeyFromVirtualKey((int)keyCode);
-            this.OrbwalkerMode.Key = key;
+            OrbwalkerMode.Key = key;
         }
     }
 }

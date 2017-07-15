@@ -15,6 +15,8 @@
     using Ensage.SDK.Orbwalker.Modes;
     using Ensage.SDK.TargetSelector;
 
+    using SharpDX;
+
     using AbilityId = Ensage.AbilityId;
     using UnitExtensions = Ensage.SDK.Extensions.UnitExtensions;
     using EntityExtensions = Ensage.SDK.Extensions.EntityExtensions;
@@ -22,17 +24,18 @@
 
     public class SuperAxe : KeyPressOrbwalkingModeAsync
     {
-        private Unit MyHero;
 
-        private Ability UltAbility { get; set; }
-        private Ability BattleAbility { get; set; }
-        private Ability CallAbility { get; set; }
+        public Ability R { get; }
 
-        public Config Config { get; }
+        public Ability W { get; }
 
-        private Lazy<ITargetSelectorManager> TargetSelector { get; }
+        public Ability Q { get; }
 
-        private static readonly string[] CuntCullModifiers =
+        private readonly Config config;
+
+        private readonly Lazy<ITargetSelectorManager> targetSelector;
+
+        private readonly string[] cuntCullModifiers =
         {
             "modifier_obsidian_destroyer_astral_imprisonment_prison",
             "modifier_puck_phase_shift",
@@ -44,90 +47,100 @@
         public SuperAxe(Key key, Config config, Lazy<IOrbwalkerManager> orbwalker, Lazy<IInputManager> input, Lazy<ITargetSelectorManager> targetSelector)
             : base(orbwalker.Value, input.Value, key)
         {
-            this.Config = config;
-            this.TargetSelector = targetSelector;
+            this.config = config;
+            this.targetSelector = targetSelector;
+
+            R = Owner.Spellbook.SpellR;
+            W = Owner.Spellbook.SpellW;
+            Q = Owner.Spellbook.SpellQ;
         }
 
         protected override void OnActivate()
         {
-            this.MyHero = Owner as Hero;
-            this.UltAbility = this.MyHero.Spellbook.SpellR;
-            this.BattleAbility = this.MyHero.Spellbook.SpellW;
-            this.CallAbility = this.MyHero.Spellbook.SpellQ;
-
-            UpdateManager.BeginInvoke(this.Loop);
+            UpdateManager.BeginInvoke(Loop);
 
             base.OnActivate();
         }
 
-        protected override void OnDeactivate()
-        {
-            base.OnDeactivate();
-        }
-
         public override async Task ExecuteAsync(CancellationToken token)
         {
-            if (!this.Config.Enabled)
-                return;
-
-            var target = this.TargetSelector.Value.Active.GetTargets().FirstOrDefault();
-
-            if (target == null)
+            if (!config.Enabled)
             {
-                this.Orbwalker.OrbwalkTo(target);
                 return;
             }
 
-            if (this.MyHero.CanCast())
-            {
-                var posForHitChance = target.BasePredict(450 + Game.Ping);
-                var distanceToHitChance = EntityExtensions.Distance2D(this.MyHero, posForHitChance);
-                var blink = this.MyHero.GetItemById(AbilityId.item_blink);
-                var force = this.MyHero.GetItemById(AbilityId.item_force_staff);
+            var target = targetSelector.Value.Active.GetTargets().FirstOrDefault();
 
-                if (blink != null && blink.CanBeCasted() && this.Config.UseItemsInit.Value.IsEnabled(blink.Name))
+            if (target == null)
+            {
+                Orbwalker.OrbwalkTo(null);
+                return;
+            }
+
+            if (!Owner.CanCast())
+            {
+                return;
+            }
+
+            var posForHitChance = target.BasePredict(450 + Game.Ping);
+            var distanceToHitChance = EntityExtensions.Distance2D(Owner, posForHitChance);
+            var blink = Owner.GetItemById(AbilityId.item_blink);
+            var force = Owner.GetItemById(AbilityId.item_force_staff);
+            var blinkReady = blink != null && blink.CanBeCasted() && config.UseItemsInit.Value.IsEnabled(blink.Name);
+            var forceReady = force != null && force.CanBeCasted() && config.UseItemsInit.Value.IsEnabled(force.Name);
+
+            if (config.EnabledForcePlusBlink && forceReady && blinkReady)
+            {
+                if (distanceToHitChance < 1900 && distanceToHitChance > 1200 && Q.CanBeCasted())
                 {
-                    if (distanceToHitChance < 1200 && !this.CallAbility.CanHit(target) && this.CallAbility.CanBeCasted())
+                    await TurnTo(posForHitChance, token);
+
+                    if (Vector3Extensions.Distance(UnitExtensions.InFront(Owner, 600), posForHitChance) < 1200)
                     {
-                        blink.UseAbility(posForHitChance);
+                        force.UseAbility(Owner);
                         await Task.Delay(10, token);
                     }
                 }
+            }
 
-                if (force != null && force.CanBeCasted() && this.Config.UseItemsInit.Value.IsEnabled(force.Name))
+            if (blinkReady)
+            {
+                if (distanceToHitChance < 1200 && !Q.CanHit(target) && Q.CanBeCasted())
                 {
-                    if (distanceToHitChance < 750 && !this.CallAbility.CanHit(target) && this.CallAbility.CanBeCasted())
+                    blink.UseAbility(posForHitChance);
+                    await Task.Delay(10, token);
+                }
+            }
+
+            if (forceReady)
+            {
+                if (distanceToHitChance < 750 && !Q.CanHit(target) && Q.CanBeCasted())
+                {
+                    await TurnTo(posForHitChance, token);
+
+                    if (Vector3Extensions.Distance(UnitExtensions.InFront(Owner, 600), posForHitChance) < 260)
                     {
-                        var posForTurn = this.MyHero.Position.Extend(posForHitChance, 70);
-
-                        this.Orbwalker.Move(posForTurn);
-
-                        await Task.Delay((int)(this.MyHero.GetTurnTime(posForTurn) * 1000 + Game.Ping + 200), token);
-
-                        if (Vector3Extensions.Distance(UnitExtensions.InFront(this.MyHero, 600), posForHitChance) < 260)
-                        {
-                            force.UseAbility(this.MyHero);
-                            await Task.Delay(10, token);
-                        }
+                        force.UseAbility(Owner);
+                        await Task.Delay(10, token);
                     }
                 }
+            }
 
-                await Kill();
+            await Kill(token);
                 
-                if (this.CallAbility.CanBeCasted())
+            if (Q.CanBeCasted())
+            {
+                if (Q.CanHit(target) && !target.HasModifiers(cuntCullModifiers, false))
                 {
-                    if (this.CallAbility.CanHit(target) && !target.HasModifiers(CuntCullModifiers, false))
-                    {
-                        this.CallAbility.UseAbility();
-                        await Task.Delay((int)(this.CallAbility.FindCastPoint() * 1000 + Game.Ping), token);
-                    }
+                    Q.UseAbility();
+                    await Task.Delay((int)(Q.FindCastPoint() * 1000 + Game.Ping), token);
+                }
 
-                    this.Orbwalker.Move(posForHitChance);
-                }
-                else
-                {
-                    this.Orbwalker.OrbwalkTo(target);
-                }
+                Orbwalker.Move(posForHitChance);
+            }
+            else
+            {
+                Orbwalker.OrbwalkTo(target);
             }
 
             await UseItems(target, token);
@@ -135,19 +148,19 @@
 
         private async void Loop()
         {
-            while (this.IsActive)
+            while (IsActive)
             {
-                if (!this.Config.Enabled)
+                if (!config.Enabled)
                 {
                     return;
                 }
 
-                if (this.Config.EnabledKillSteal && (!this.CanExecute || !this.CallAbility.CanBeCasted()))
+                if (config.EnabledKillSteal && (!CanExecute || !Q.CanBeCasted()))
                 {
                     await Kill();
                 }
 
-                if (this.CanExecute)
+                if (CanExecute)
                 {
                     await AntiFail();
                 }
@@ -156,21 +169,28 @@
             }
         }
 
-        public async Task Kill(CancellationToken token = new CancellationToken())
+        private async Task Kill(CancellationToken token = new CancellationToken())
         {
             var enemies = EntityManager<Hero>.Entities
-                .Where(x => this.MyHero.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive && x.Distance2D(this.MyHero) < 400)
-                .OrderBy(e => e.Distance2D(this.MyHero))
+                .Where(x => Owner.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive && x.Distance2D(Owner) < 400)
+                .OrderBy(e => e.Distance2D(Owner))
                 .ToList();
 
-            if (enemies == null)
+            if (!enemies.Any())
+            {
                 return;
+            }
 
-            var threshold = this.UltAbility.GetAbilityData("kill_threshold");
+            if (!Owner.CanCast())
+            {
+                return;
+            }
+
+            var threshold = R.GetAbilityData("kill_threshold");
 
             foreach (var enemy in enemies)
             {
-                if (enemy.Modifiers.Where(m => m.Name == "modifier_skeleton_king_reincarnation_scepter_active").Any())
+                if (enemy.Modifiers.Any(m => m.Name == "modifier_skeleton_king_reincarnation_scepter_active"))
                 {
                     continue;
                 }
@@ -185,104 +205,113 @@
                     continue;
                 }
 
-                if (this.UltAbility.CanBeCasted(enemy) && this.MyHero.CanCast())
+                if (!R.CanBeCasted(enemy))
                 {
-                    this.UltAbility.UseAbility(enemy);
-
-                    await Task.Delay((int)(this.UltAbility.FindCastPoint() * 1000 + Game.Ping), token);
+                    continue;
                 }
+
+                R.UseAbility(enemy);
+                await Task.Delay((int)(R.FindCastPoint() * 1000 + Game.Ping), token);
             }
         }
 
-        public async Task AntiFail(CancellationToken token = new CancellationToken())
+        private async Task AntiFail(CancellationToken token = new CancellationToken())
         {
-            if (this.CallAbility != null && this.CallAbility.IsInAbilityPhase)
+            if (Q != null && Q.IsInAbilityPhase)
             {
                 var enemies = EntityManager<Hero>.Entities
-                    .Where(x => this.MyHero.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive && this.MyHero.Distance2D(x) < 260 && !x.HasModifiers(CuntCullModifiers, false))
-                    .Count();
+                    .Count(x => Owner.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive && Owner.Distance2D(x) < 260 && !x.HasModifiers(cuntCullModifiers, false));
 
                 if (enemies == 0)
                 {
-                    this.MyHero.Stop();
+                    Owner.Stop();
                     await Task.Delay(10, token);
                 }
             }
         }
 
-        public async Task UseItems(Unit target, CancellationToken token)
+        private async Task UseItems(Unit target, CancellationToken token)
         {
             var called = EntityManager<Hero>.Entities
-                .Where(x => this.MyHero.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive && x.Modifiers.Where(m => m.Name == "modifier_axe_berserkers_call").Any())
+                .Where(x => Owner.Team != x.Team && x.IsValid && !x.IsIllusion && x.IsAlive && x.Modifiers.Any(m => m.Name == "modifier_axe_berserkers_call"))
                 .ToList();
 
             if (called.Any())
             {
-                var bkb = this.MyHero.GetItemById(AbilityId.item_black_king_bar);
-                if (bkb != null && bkb.CanBeCasted() && this.Config.UseItems.Value.IsEnabled(bkb.Name))
+                var bkb = Owner.GetItemById(AbilityId.item_black_king_bar);
+                if (bkb != null && bkb.CanBeCasted() && config.UseItems.Value.IsEnabled(bkb.Name))
                 {
                     bkb.UseAbility();
                     await Task.Delay(10, token);
                 }
 
-                var bladeMail = this.MyHero.GetItemById(AbilityId.item_blade_mail);
-                if (bladeMail != null && bladeMail.CanBeCasted() && this.Config.UseItems.Value.IsEnabled(bladeMail.Name))
+                var bladeMail = Owner.GetItemById(AbilityId.item_blade_mail);
+                if (bladeMail != null && bladeMail.CanBeCasted() && config.UseItems.Value.IsEnabled(bladeMail.Name))
                 {
                     bladeMail.UseAbility();
                     await Task.Delay(10, token);
                 }
 
-                var lotus = this.MyHero.GetItemById(AbilityId.item_lotus_orb);
-                if (lotus != null && lotus.CanBeCasted() && this.Config.UseItems.Value.IsEnabled(lotus.Name))
+                var lotus = Owner.GetItemById(AbilityId.item_lotus_orb);
+                if (lotus != null && lotus.CanBeCasted() && config.UseItems.Value.IsEnabled(lotus.Name))
                 {
-                    lotus.UseAbility(this.MyHero);
+                    lotus.UseAbility(Owner);
                     await Task.Delay(10, token);
                 }
 
-                var mjollnir = this.MyHero.GetItemById(AbilityId.item_mjollnir);
-                if (mjollnir != null && mjollnir.CanBeCasted() && this.Config.UseItems.Value.IsEnabled(mjollnir.Name))
+                var mjollnir = Owner.GetItemById(AbilityId.item_mjollnir);
+                if (mjollnir != null && mjollnir.CanBeCasted() && config.UseItems.Value.IsEnabled(mjollnir.Name))
                 {
-                    mjollnir.UseAbility(this.MyHero);
+                    mjollnir.UseAbility(Owner);
                     await Task.Delay(10, token);
                 }
 
-                var shiva = this.MyHero.GetItemById(AbilityId.item_shivas_guard);
-                if (shiva != null && shiva.CanBeCasted() && this.Config.UseItems.Value.IsEnabled(shiva.Name))
+                var shiva = Owner.GetItemById(AbilityId.item_shivas_guard);
+                if (shiva != null && shiva.CanBeCasted() && config.UseItems.Value.IsEnabled(shiva.Name))
                 {
                     shiva.UseAbility();
                     await Task.Delay(10, token);
                 }
 
-                var crimson = this.MyHero.GetItemById(AbilityId.item_crimson_guard);
-                if (crimson != null && crimson.CanBeCasted() && this.Config.UseItems.Value.IsEnabled(crimson.Name))
+                var crimson = Owner.GetItemById(AbilityId.item_crimson_guard);
+                if (crimson != null && crimson.CanBeCasted() && config.UseItems.Value.IsEnabled(crimson.Name))
                 {
                     crimson.UseAbility();
                     await Task.Delay(10, token);
                 }
 
-                var pipe = this.MyHero.GetItemById(AbilityId.item_pipe);
-                if (pipe != null && pipe.CanBeCasted() && this.Config.UseItems.Value.IsEnabled(pipe.Name))
+                var pipe = Owner.GetItemById(AbilityId.item_pipe);
+                if (pipe != null && pipe.CanBeCasted() && config.UseItems.Value.IsEnabled(pipe.Name))
                 {
                     pipe.UseAbility();
                     await Task.Delay(10, token);
                 }
 
-                var dagon = MyHero.GetDagon();
-                if (dagon != null && dagon.CanBeCasted() && this.Config.UseItems.Value.IsEnabled("item_dagon") && !UnitExtensions.IsMagicImmune(target) && !UnitExtensions.IsLinkensProtected(target))
+                var dagon = Owner.GetDagon();
+                if (dagon != null && dagon.CanBeCasted() && config.UseItems.Value.IsEnabled("item_dagon") && !UnitExtensions.IsMagicImmune(target) && !UnitExtensions.IsLinkensProtected(target))
                 {
                     dagon.UseAbility(target);
                     await Task.Delay(10, token);
                 }
 
-                if (this.BattleAbility != null && this.BattleAbility.CanBeCasted() && this.MyHero.CanCast() && !UnitExtensions.IsMagicImmune(target))
+                if (W != null && W.CanBeCasted() && Owner.CanCast() && !UnitExtensions.IsMagicImmune(target))
                 {
-                    if (this.BattleAbility.ManaCost + this.UltAbility.ManaCost < this.MyHero.Mana)
+                    if (W.ManaCost + R.ManaCost < Owner.Mana)
                     {
-                        this.BattleAbility.UseAbility(target);
-                        await Task.Delay((int)(this.BattleAbility.FindCastPoint() * 1000 + Game.Ping), token);
+                        W.UseAbility(target);
+                        await Task.Delay((int)(W.FindCastPoint() * 1000 + Game.Ping), token);
                     }
                 }
             }
+        }
+
+        private async Task TurnTo(Vector3 posForHitChance, CancellationToken token = new CancellationToken())
+        {
+            var posForTurn = Owner.Position.Extend(posForHitChance, 65);
+
+            Orbwalker.Move(posForTurn);
+
+            await Task.Delay((int)(Owner.GetTurnTime(posForTurn) * 1000 + Game.Ping + 200), token);
         }
     }
 }
