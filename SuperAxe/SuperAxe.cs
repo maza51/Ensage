@@ -10,10 +10,10 @@
     using Ensage.Common.Extensions;
     using Ensage.SDK.Extensions;
     using Ensage.SDK.Helpers;
-    using Ensage.SDK.Input;
     using Ensage.SDK.Orbwalker;
     using Ensage.SDK.Orbwalker.Modes;
     using Ensage.SDK.TargetSelector;
+    using Ensage.SDK.Service;
 
     using SharpDX;
 
@@ -24,7 +24,6 @@
 
     public class SuperAxe : KeyPressOrbwalkingModeAsync
     {
-
         public Ability R { get; }
 
         public Ability W { get; }
@@ -33,7 +32,7 @@
 
         private readonly Config config;
 
-        private readonly Lazy<ITargetSelectorManager> targetSelector;
+        private readonly ITargetSelectorManager targetSelector;
 
         private readonly string[] cuntCullModifiers =
         {
@@ -44,11 +43,11 @@
             "modifier_riki_tricks_of_the_trade_phase"
         };
 
-        public SuperAxe(Key key, Config config, Lazy<IOrbwalkerManager> orbwalker, Lazy<IInputManager> input, Lazy<ITargetSelectorManager> targetSelector)
-            : base(orbwalker.Value, input.Value, key)
+        public SuperAxe(Key key, Config config, IServiceContext context)
+            : base(context, key)
         {
             this.config = config;
-            this.targetSelector = targetSelector;
+            targetSelector = context.TargetSelector;
 
             R = Owner.Spellbook.SpellR;
             W = Owner.Spellbook.SpellW;
@@ -69,7 +68,7 @@
                 return;
             }
 
-            var target = targetSelector.Value.Active.GetTargets().FirstOrDefault();
+            var target = targetSelector.Active.GetTargets().FirstOrDefault();
 
             if (target == null)
             {

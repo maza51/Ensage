@@ -9,11 +9,8 @@
     using Ensage.Common;
     using Ensage.Common.Extensions;
     using Ensage.Common.Menu;
-    using Ensage.SDK.Input;
-    using Ensage.SDK.Orbwalker;
     using Ensage.SDK.Service;
     using Ensage.SDK.Service.Metadata;
-    using Ensage.SDK.TargetSelector;
     using Ensage.SDK.Helpers;
 
     using SharpDX;
@@ -23,27 +20,18 @@
     {
         private readonly Unit myHero;
 
-        private readonly Lazy<IInputManager> input;
-
-        private readonly Lazy<IOrbwalkerManager> orbwalkerManager;
-
-        private readonly Lazy<ITargetSelectorManager> targetSelector;
-
         public SuperAxe OrbwalkerMode { get; private set; }
 
         public Config Config { get; private set; }
 
+        public IServiceContext Context { get; private set; }
+
         [ImportingConstructor]
         public Program(
-            [Import] Lazy<IServiceContext> context,
-            [Import] Lazy<IInputManager> input,
-            [Import] Lazy<IOrbwalkerManager> orbwalkerManager,
-            [Import] Lazy<ITargetSelectorManager> targetSelector)
+            [Import] IServiceContext context)
         {
-            myHero = context.Value.Owner as Hero;
-            this.input = input;
-            this.orbwalkerManager = orbwalkerManager;
-            this.targetSelector = targetSelector;
+            myHero = context.Owner as Hero;
+            Context = context;
         }
 
         protected override void OnActivate()
@@ -54,18 +42,16 @@
             OrbwalkerMode = new SuperAxe(
                 KeyInterop.KeyFromVirtualKey((int)Config.Key.Value.Key),
                 Config,
-                orbwalkerManager,
-                input,
-                targetSelector);
+                Context);
 
-            orbwalkerManager.Value.RegisterMode(OrbwalkerMode);
+            Context.Orbwalker.RegisterMode(OrbwalkerMode);
 
             Drawing.OnDraw += Drawing_OnDraw;
         }
 
         protected override void OnDeactivate()
         {
-            orbwalkerManager.Value.UnregisterMode(OrbwalkerMode);
+            Context.Orbwalker.UnregisterMode(OrbwalkerMode);
 
             Config.Key.Item.ValueChanged -= HotkeyChanged;
             Config.Dispose();
