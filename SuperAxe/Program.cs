@@ -75,7 +75,7 @@
                 return;
             }
 
-            var threshold = myHero.Spellbook.SpellR.GetAbilityData("kill_threshold");
+            var threshold = OrbwalkerMode.R.GetAbilityData("kill_threshold");
 
             if (threshold <= 0)
             {

@@ -49,7 +49,7 @@
             this.config = config;
             targetSelector = context.TargetSelector;
 
-            R = Owner.Spellbook.SpellR;
+            R = Owner.Spellbook.Spell4;
             W = Owner.Spellbook.SpellW;
             Q = Owner.Spellbook.SpellQ;
         }
